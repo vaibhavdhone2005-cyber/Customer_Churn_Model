@@ -1,152 +1,267 @@
 import streamlit as st
-import pickle
-import numpy as np
 import pandas as pd
+import numpy as np
+import pickle
+import os
 
-# Page Configuration for Business Presentation
+# ==========================================
+# 1. PAGE CONFIGURATION & EXECUTIVE THEME
+# ==========================================
 st.set_page_config(
-    page_title="Customer Retention Analytics | Executive Portal",
+    page_title="Executive Churn Predictor",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom Styling (Slate Blue & Emerald Theme)
+# Custom CSS for Premium Business Meeting UI
 st.markdown("""
-    <style>
+<style>
+    /* Main Background & Fonts */
     .main {
-        background-color: #0f172a;
-        color: #f8fafc;
+        background-color: #F8FAFC;
+        font-family: 'Inter', sans-serif;
     }
-    .stApp {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    }
-    .css-1d3b10b, .stSidebar {
-        background-color: #1e293b !important;
-    }
-    .metric-card {
-        background-color: rgba(30, 41, 59, 0.7);
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        text-align: center;
-    }
-    .risk-high {
-        background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+    
+    /* Header Styling */
+    .header-box {
+        background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+        padding: 2.5rem;
+        border-radius: 16px;
         color: white;
-        padding: 24px;
-        border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.3);
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
     }
-    .risk-low {
-        background: linear-gradient(135deg, #10b981 0%, #065f46 100%);
-        color: white;
-        padding: 24px;
-        border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
+    .header-box h1 {
+        font-weight: 700;
+        font-size: 2.3rem;
+        margin-bottom: 0.5rem;
+        color: #F8FAFC;
     }
-    .stButton>button {
-        width: 100%;
-        background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
+    .header-box p {
+        color: #94A3B8;
+        font-size: 1.05rem;
+        margin-bottom: 0;
+    }
+
+    /* Input Section Cards */
+    .card {
+        background-color: #FFFFFF;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        margin-bottom: 1.5rem;
+    }
+    .card-title {
+        font-size: 1.1rem;
         font-weight: 600;
-        font-size: 16px;
+        color: #1E293B;
+        border-bottom: 2px solid #F1F5F9;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Result Metric Badges */
+    .status-badge-high {
+        background-color: #FEF2F2;
+        border: 2px solid #EF4444;
+        color: #991B1B;
+        padding: 1.5rem;
+        border-radius: 12px;
+        text-align: center;
+    }
+    .status-badge-low {
+        background-color: #ECFDF5;
+        border: 2px solid #10B981;
+        color: #065F46;
+        padding: 1.5rem;
+        border-radius: 12px;
+        text-align: center;
+    }
+    .status-badge-med {
+        background-color: #FFFBEB;
+        border: 2px solid #F59E0B;
+        color: #92400E;
+        padding: 1.5rem;
+        border-radius: 12px;
+        text-align: center;
+    }
+    
+    /* Predict Button Styling */
+    .stButton>button {
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+        color: white;
+        font-weight: 600;
+        font-size: 1.1rem;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        border: none;
+        width: 100%;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
         transition: all 0.3s ease;
     }
     .stButton>button:hover {
-        background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
     }
-    </style>
-""", unsafe_allow_html=True)
+</style>
+""", unsafe_allow_dict_style=True)
 
-# Load Model
+
+# ==========================================
+# 2. MODEL LOADING
+# ==========================================
 @st.cache_resource
 def load_model():
-    with open('customer_churn_model.pkl', 'rb') as file:
-        return pickle.load(file)
+    model_path = "customer_churn_model.pkl"
+    if os.path.exists(model_path):
+        with open(model_path, "rb") as f:
+            return pickle.load(f)
+    else:
+        st.error(f"❌ Model file `{model_path}` not found. Please upload it to the working directory.")
+        return None
 
 model = load_model()
 
-# Header Banner
-st.title("💼 Enterprise Customer Churn Predictor")
-st.caption("AI-Powered Risk Assessment Engine for Boardroom Analytics")
-st.markdown("---")
+# ==========================================
+# 3. HEADER & PRESENTATION PRESETS
+# ==========================================
+st.markdown("""
+<div class="header-box">
+    <h1>💼 Customer Churn Intelligence Dashboard</h1>
+    <p>Predict customer attrition risk in real-time and drive proactive retention strategies.</p>
+</div>
+""", unsafe_allow_dict_style=True)
 
-# Input Section (Sidebar Layout)
-st.sidebar.header("🎯 Customer Profile Inputs")
+# Sidebar Preset Scenarios for live meeting speed
+st.sidebar.image("https://img.icons8.com/color/96/dashboard-layout.png", width=60)
+st.sidebar.title("⚡ Demo Controls")
+st.sidebar.write("Load preset profiles during meetings for instant demonstration:")
 
-age = st.sidebar.slider("Age", 18, 100, 35)
-gender = st.sidebar.selectbox("Gender", ["Female", "Male"])
-tenure = st.sidebar.number_input("Tenure (Months)", min_value=0, max_value=120, value=24)
-usage_freq = st.sidebar.slider("Usage Frequency (Monthly Logins)", 1, 30, 12)
-support_calls = st.sidebar.slider("Support Calls Logged", 0, 10, 2)
-payment_delay = st.sidebar.slider("Payment Delay (Days)", 0, 30, 3)
-sub_type = st.sidebar.selectbox("Subscription Type", ["Basic", "Standard", "Premium"])
-contract_length = st.sidebar.selectbox("Contract Length", ["Monthly", "Quarterly", "Annual"])
-total_spend = st.sidebar.number_input("Total Spend ($)", min_value=0, max_value=10000, value=1500)
-last_interaction = st.sidebar.slider("Days Since Last Interaction", 0, 30, 5)
+preset = st.sidebar.radio(
+    "Choose Preset Scenario:",
+    ["Custom Input", "🟢 Low Risk (Loyal Enterprise)", "🔴 High Risk (At-Risk Customer)"]
+)
 
-# Convert Categoricals to Encoded Numerical Data
-gender_encoded = 1 if gender == "Male" else 0
-sub_type_map = {"Basic": 0, "Standard": 1, "Premium": 2}
-contract_map = {"Monthly": 0, "Quarterly": 1, "Annual": 2}
+# Set Default Values based on Selection
+if preset == "🟢 Low Risk (Loyal Enterprise)":
+    defaults = {"age": 42, "gender": "Male", "tenure": 36, "usage": 22, "calls": 1, "delay": 2, "sub": "Premium", "contract": "Annual", "spend": 4500, "interaction": 5}
+elif preset == "🔴 High Risk (At-Risk Customer)":
+    defaults = {"age": 28, "gender": "Female", "tenure": 4, "usage": 3, "calls": 8, "delay": 18, "sub": "Basic", "contract": "Monthly", "spend": 350, "interaction": 25}
+else:
+    defaults = {"age": 35, "gender": "Male", "tenure": 12, "usage": 10, "calls": 3, "delay": 5, "sub": "Standard", "contract": "Quarterly", "spend": 1200, "interaction": 10}
 
-input_features = np.array([[
-    age, gender_encoded, tenure, usage_freq, support_calls,
-    payment_delay, sub_type_map[sub_type], contract_map[contract_length],
-    total_spend, last_interaction
-]])
+# Feature Categorical Mappings (Standard Ordinal Encoding)
+GENDER_MAP = {"Female": 0, "Male": 1}
+SUB_MAP = {"Basic": 0, "Standard": 1, "Premium": 2}
+CONTRACT_MAP = {"Monthly": 0, "Quarterly": 1, "Annual": 2}
 
-# Main Presentation Dashboard Layout
-col1, col2 = st.columns([1, 1], gap="large")
+# ==========================================
+# 4. INPUT FORM LAYOUT
+# ==========================================
+col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("📋 Profile Overview")
-    profile_df = pd.DataFrame({
-        "Attribute": ["Customer Segment", "Total Spend", "Support Engagement", "Contract Term"],
-        "Value": [sub_type, f"${total_spend:,.2f}", f"{support_calls} Calls", contract_length]
-    })
-    st.table(profile_df)
+    st.markdown('<div class="card"><div class="card-title">👤 Customer Demographics & Subscription</div>', unsafe_allow_dict_style=True)
     
-    predict_btn = st.button("🚀 Evaluate Churn Risk")
+    age = st.number_input("Age", min_value=18, max_value=100, value=defaults["age"])
+    gender = st.selectbox("Gender", ["Female", "Male"], index=0 if defaults["gender"] == "Female" else 1)
+    sub_type = st.selectbox("Subscription Type", ["Basic", "Standard", "Premium"], index=["Basic", "Standard", "Premium"].index(defaults["sub"]))
+    contract_length = st.selectbox("Contract Length", ["Monthly", "Quarterly", "Annual"], index=["Monthly", "Quarterly", "Annual"].index(defaults["contract"]))
+    total_spend = st.number_input("Total Spend ($)", min_value=0, max_value=100000, value=defaults["spend"], step=100)
+    
+    st.markdown('</div>', unsafe_allow_dict_style=True)
 
 with col2:
-    st.subheader("📊 Executive Summary")
-    if predict_btn:
-        prediction = model.predict(input_features)[0]
-        prediction_prob = model.predict_proba(input_features)[0] if hasattr(model, "predict_proba") else [0.5, 0.5]
-        churn_risk = prediction_prob[1] * 100 if hasattr(model, "predict_proba") else (100 if prediction == 1 else 0)
+    st.markdown('<div class="card"><div class="card-title">📈 Engagement & Interaction Metrics</div>', unsafe_allow_dict_style=True)
+    
+    tenure = st.number_input("Tenure (Months)", min_value=0, max_value=120, value=defaults["tenure"])
+    usage_freq = st.slider("Usage Frequency (Days / Month)", min_value=0, max_value=30, value=defaults["usage"])
+    support_calls = st.slider("Support Calls Received", min_value=0, max_value=20, value=defaults["calls"])
+    payment_delay = st.number_input("Payment Delay (Days)", min_value=0, max_value=60, value=defaults["delay"])
+    last_interaction = st.number_input("Days Since Last Interaction", min_value=0, max_value=60, value=defaults["interaction"])
+    
+    st.markdown('</div>', unsafe_allow_dict_style=True)
 
-        if prediction == 1 or churn_risk > 50:
-            st.markdown(f"""
-                <div class="risk-high">
-                    <h2 style='margin:0;'>⚠️ High Risk of Churn</h2>
-                    <h1 style='margin:10px 0; font-size: 48px;'>{churn_risk:.1f}%</h1>
-                    <p style='margin:0;'>Immediate Retention Action Required</p>
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-                <div class="risk-low">
-                    <h2 style='margin:0;'>✅ Account Stable</h2>
-                    <h1 style='margin:10px 0; font-size: 48px;'>{100 - churn_risk:.1f}%</h1>
-                    <p style='margin:0;'>Retention Confidence Score</p>
-                </div>
-            """, unsafe_allow_html=True)
+# ==========================================
+# 5. PREDICTION & ANALYTICS OUTPUT
+# ==========================================
+st.markdown("<br>", unsafe_allow_dict_style=True)
+predict_clicked = st.button("🔍 Evaluate Customer Churn Probability")
 
-        st.write("")
-        st.write("**Key Action Items:**")
-        if prediction == 1 or churn_risk > 50:
-            st.error("• Schedule priority check-in with Account Manager.")
-            st.error("• Offer contract upgrade discount or tailored loyalty package.")
-        else:
-            st.success("• Account is healthy. Target for potential cross-sell/up-sell opportunities.")
-    else:
-        st.info("Adjust values in the left panel and click **Evaluate Churn Risk** to generate real-time predictive insights.")
+if predict_clicked or preset != "Custom Input":
+    if model is not None:
+        # Prepare Feature Vector according to model requirements
+        feature_values = [
+            age,
+            GENDER_MAP[gender],
+            tenure,
+            usage_freq,
+            support_calls,
+            payment_delay,
+            SUB_MAP[sub_type],
+            CONTRACT_MAP[contract_length],
+            total_spend,
+            last_interaction
+        ]
+        
+        feature_names = [
+            "Age", "Gender", "Tenure", "Usage Frequency",
+            "Support Calls", "Payment Delay", "Subscription Type",
+            "Contract Length", "Total Spend", "Last Interaction"
+        ]
+        
+        input_df = pd.DataFrame([feature_values], columns=feature_names)
+        
+        # Inference
+        prediction = model.predict(input_df)[0]
+        probabilities = model.predict_proba(input_df)[0]
+        churn_prob = probabilities[1] * 100
+        
+        st.markdown("---")
+        st.subheader("📊 Executive Analysis & Decision Support")
+        
+        res_col1, res_col2 = st.columns([1, 1])
+        
+        with res_col1:
+            if churn_prob >= 60:
+                st.markdown(f"""
+                <div class="status-badge-high">
+                    <h3 style="margin:0; font-size: 1.2rem;">CRITICAL RISK LEVEL</h3>
+                    <h1 style="margin: 0.5rem 0; font-size: 3rem;">{churn_prob:.1f}%</h1>
+                    <p style="margin:0;">High Risk of Customer Attrition</p>
+                </div>
+                """, unsafe_allow_dict_style=True)
+            elif churn_prob >= 30:
+                st.markdown(f"""
+                <div class="status-badge-med">
+                    <h3 style="margin:0; font-size: 1.2rem;">MODERATE RISK LEVEL</h3>
+                    <h1 style="margin: 0.5rem 0; font-size: 3rem;">{churn_prob:.1f}%</h1>
+                    <p style="margin:0;">Monitor Engagement & Solicit Feedback</p>
+                </div>
+                """, unsafe_allow_dict_style=True)
+            else:
+                st.markdown(f"""
+                <div class="status-badge-low">
+                    <h3 style="margin:0; font-size: 1.2rem;">LOW RISK LEVEL</h3>
+                    <h1 style="margin: 0.5rem 0; font-size: 3rem;">{churn_prob:.1f}%</h1>
+                    <p style="margin:0;">Customer is Stable & Highly Retained</p>
+                </div>
+                """, unsafe_allow_dict_style=True)
+
+        with res_col2:
+            st.markdown("#### Recommended Strategic Action")
+            if churn_prob >= 60:
+                st.error("🚨 **Immediate Intervention Required**")
+                st.write("* **Action Item 1:** Assign a dedicated Account Executive within 24 hours.")
+                st.write("* **Action Item 2:** Offer a 15% promotional extension discount on annual renewal.")
+                st.write("* **Action Item 3:** Resolve open support queries immediately.")
+            elif churn_prob >= 30:
+                st.warning("⚠️ **Proactive Engagement Suggested**")
+                st.write("* **Action Item 1:** Send automated product feature tips and check-in survey.")
+                st.write("* **Action Item 2:** Review support call history to identify key friction points.")
+            else:
+                st.success("✅ **Healthy Account Status**")
+                st.write("* **Action Item 1:** Target for upsell or premium feature add-on.")
+                st.write("* **Action Item 2:** Invite to join customer advocacy / loyalty advisory panel.")
