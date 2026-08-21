@@ -1,132 +1,152 @@
-"""
-Customer Churn Prediction — Flask Web App
-Deploy target: Render.com
-
-Loads a pre-trained scikit-learn AdaBoostClassifier (customer_churn_model.pkl)
-and serves a form-based UI + JSON API to predict churn probability.
-"""
-
-import os
+import streamlit as st
 import pickle
 import numpy as np
-from flask import Flask, render_template, request, jsonify
+import pandas as pd
 
-app = Flask(__name__)
+# Page Configuration for Business Presentation
+st.set_page_config(
+    page_title="Customer Retention Analytics | Executive Portal",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# ---------------------------------------------------------------------------
-# Model loading
-# ---------------------------------------------------------------------------
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "customer_churn_model.pkl")
+# Custom Styling (Slate Blue & Emerald Theme)
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0f172a;
+        color: #f8fafc;
+    }
+    .stApp {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    }
+    .css-1d3b10b, .stSidebar {
+        background-color: #1e293b !important;
+    }
+    .metric-card {
+        background-color: rgba(30, 41, 59, 0.7);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        text-align: center;
+    }
+    .risk-high {
+        background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+        color: white;
+        padding: 24px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.3);
+    }
+    .risk-low {
+        background: linear-gradient(135deg, #10b981 0%, #065f46 100%);
+        color: white;
+        padding: 24px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
+    }
+    .stButton>button {
+        width: 100%;
+        background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-model = None
-model_load_error = None
+# Load Model
+@st.cache_resource
+def load_model():
+    with open('customer_churn_model.pkl', 'rb') as file:
+        return pickle.load(file)
 
-try:
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
-except Exception as e:  # noqa: BLE001
-    model_load_error = str(e)
+model = load_model()
 
-# Exact feature order the model was trained on (from model.feature_names_in_)
-FEATURE_ORDER = [
-    "Age",
-    "Gender",
-    "Tenure",
-    "Usage Frequency",
-    "Support Calls",
-    "Payment Delay",
-    "Subscription Type",
-    "Contract Length",
-    "Total Spend",
-    "Last Interaction",
-]
+# Header Banner
+st.title("💼 Enterprise Customer Churn Predictor")
+st.caption("AI-Powered Risk Assessment Engine for Boardroom Analytics")
+st.markdown("---")
 
-# ---------------------------------------------------------------------------
-# Category encodings
-# ---------------------------------------------------------------------------
-# NOTE: The pickle file only contains the trained model, not the encoders
-# used on the categorical columns during training. These mappings follow
-# the standard alphabetical scikit-learn LabelEncoder convention, which is
-# the common convention for this dataset. If your predictions look off,
-# re-check these against your original training notebook and adjust below.
-GENDER_MAP = {"Female": 0, "Male": 1}
-SUBSCRIPTION_MAP = {"Basic": 0, "Premium": 1, "Standard": 2}
-CONTRACT_MAP = {"Annual": 0, "Monthly": 1, "Quarterly": 2}
+# Input Section (Sidebar Layout)
+st.sidebar.header("🎯 Customer Profile Inputs")
 
+age = st.sidebar.slider("Age", 18, 100, 35)
+gender = st.sidebar.selectbox("Gender", ["Female", "Male"])
+tenure = st.sidebar.number_input("Tenure (Months)", min_value=0, max_value=120, value=24)
+usage_freq = st.sidebar.slider("Usage Frequency (Monthly Logins)", 1, 30, 12)
+support_calls = st.sidebar.slider("Support Calls Logged", 0, 10, 2)
+payment_delay = st.sidebar.slider("Payment Delay (Days)", 0, 30, 3)
+sub_type = st.sidebar.selectbox("Subscription Type", ["Basic", "Standard", "Premium"])
+contract_length = st.sidebar.selectbox("Contract Length", ["Monthly", "Quarterly", "Annual"])
+total_spend = st.sidebar.number_input("Total Spend ($)", min_value=0, max_value=10000, value=1500)
+last_interaction = st.sidebar.slider("Days Since Last Interaction", 0, 30, 5)
 
-def build_feature_vector(payload: dict) -> np.ndarray:
-    """Convert incoming form/JSON payload into an ordered numeric feature vector."""
-    row = [
-        float(payload["age"]),
-        GENDER_MAP[payload["gender"]],
-        float(payload["tenure"]),
-        float(payload["usage_frequency"]),
-        float(payload["support_calls"]),
-        float(payload["payment_delay"]),
-        SUBSCRIPTION_MAP[payload["subscription_type"]],
-        CONTRACT_MAP[payload["contract_length"]],
-        float(payload["total_spend"]),
-        float(payload["last_interaction"]),
-    ]
-    return np.array(row, dtype=float).reshape(1, -1)
+# Convert Categoricals to Encoded Numerical Data
+gender_encoded = 1 if gender == "Male" else 0
+sub_type_map = {"Basic": 0, "Standard": 1, "Premium": 2}
+contract_map = {"Monthly": 0, "Quarterly": 1, "Annual": 2}
 
+input_features = np.array([[
+    age, gender_encoded, tenure, usage_freq, support_calls,
+    payment_delay, sub_type_map[sub_type], contract_map[contract_length],
+    total_spend, last_interaction
+]])
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
-@app.route("/")
-def index():
-    return render_template(
-        "index.html",
-        genders=list(GENDER_MAP.keys()),
-        subscriptions=list(SUBSCRIPTION_MAP.keys()),
-        contracts=list(CONTRACT_MAP.keys()),
-        model_ready=model is not None,
-        model_load_error=model_load_error,
-    )
+# Main Presentation Dashboard Layout
+col1, col2 = st.columns([1, 1], gap="large")
 
+with col1:
+    st.subheader("📋 Profile Overview")
+    profile_df = pd.DataFrame({
+        "Attribute": ["Customer Segment", "Total Spend", "Support Engagement", "Contract Term"],
+        "Value": [sub_type, f"${total_spend:,.2f}", f"{support_calls} Calls", contract_length]
+    })
+    st.table(profile_df)
+    
+    predict_btn = st.button("🚀 Evaluate Churn Risk")
 
-@app.route("/predict", methods=["POST"])
-def predict():
-    if model is None:
-        return jsonify({"error": f"Model not loaded: {model_load_error}"}), 500
+with col2:
+    st.subheader("📊 Executive Summary")
+    if predict_btn:
+        prediction = model.predict(input_features)[0]
+        prediction_prob = model.predict_proba(input_features)[0] if hasattr(model, "predict_proba") else [0.5, 0.5]
+        churn_risk = prediction_prob[1] * 100 if hasattr(model, "predict_proba") else (100 if prediction == 1 else 0)
 
-    try:
-        payload = request.get_json(force=True) if request.is_json else request.form
-        features = build_feature_vector(payload)
-
-        prediction = int(model.predict(features)[0])
-        probabilities = model.predict_proba(features)[0]
-        churn_probability = float(probabilities[1])  # class 1 = churn
-        retain_probability = float(probabilities[0])
-
-        if churn_probability >= 0.7:
-            risk_level = "High"
-        elif churn_probability >= 0.4:
-            risk_level = "Medium"
+        if prediction == 1 or churn_risk > 50:
+            st.markdown(f"""
+                <div class="risk-high">
+                    <h2 style='margin:0;'>⚠️ High Risk of Churn</h2>
+                    <h1 style='margin:10px 0; font-size: 48px;'>{churn_risk:.1f}%</h1>
+                    <p style='margin:0;'>Immediate Retention Action Required</p>
+                </div>
+            """, unsafe_allow_html=True)
         else:
-            risk_level = "Low"
+            st.markdown(f"""
+                <div class="risk-low">
+                    <h2 style='margin:0;'>✅ Account Stable</h2>
+                    <h1 style='margin:10px 0; font-size: 48px;'>{100 - churn_risk:.1f}%</h1>
+                    <p style='margin:0;'>Retention Confidence Score</p>
+                </div>
+            """, unsafe_allow_html=True)
 
-        return jsonify(
-            {
-                "prediction": prediction,
-                "will_churn": bool(prediction == 1),
-                "churn_probability": round(churn_probability * 100, 2),
-                "retain_probability": round(retain_probability * 100, 2),
-                "risk_level": risk_level,
-            }
-        )
-    except KeyError as e:
-        return jsonify({"error": f"Missing field: {e}"}), 400
-    except Exception as e:  # noqa: BLE001
-        return jsonify({"error": str(e)}), 400
-
-
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok", "model_loaded": model is not None})
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+        st.write("")
+        st.write("**Key Action Items:**")
+        if prediction == 1 or churn_risk > 50:
+            st.error("• Schedule priority check-in with Account Manager.")
+            st.error("• Offer contract upgrade discount or tailored loyalty package.")
+        else:
+            st.success("• Account is healthy. Target for potential cross-sell/up-sell opportunities.")
+    else:
+        st.info("Adjust values in the left panel and click **Evaluate Churn Risk** to generate real-time predictive insights.")
